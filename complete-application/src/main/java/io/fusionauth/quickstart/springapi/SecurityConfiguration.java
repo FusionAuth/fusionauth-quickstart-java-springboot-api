@@ -4,12 +4,19 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
 
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 @Configuration
 public class SecurityConfiguration {
@@ -18,6 +25,30 @@ public class SecurityConfiguration {
 
     public SecurityConfiguration(OAuth2ResourceServerProperties properties) {
         this.properties = properties;
+    }
+    
+    @Bean
+    BearerTokenResolver bearerTokenResolver() {
+        // look in both app.at cookie and Authorization header
+        BearerTokenResolver bearerTokenResolver = new BearerTokenResolver () {
+            public String resolve(HttpServletRequest request) {
+               Cookie[] cookies = request.getCookies();
+
+               if (cookies != null) {
+                   Optional<Cookie> cookie = Arrays.stream(cookies)
+                       .filter(name -> name.getName().equals("app.at"))
+                       .findFirst();
+                   if (cookie.isPresent()) {
+                       return cookie.get().getValue();
+                   }
+               }
+
+               // handles authorization header
+               DefaultBearerTokenResolver defaultBearerTokenResolver = new DefaultBearerTokenResolver();
+               return defaultBearerTokenResolver.resolve(request);
+            }
+        };
+        return bearerTokenResolver;
     }
 
     @Bean
